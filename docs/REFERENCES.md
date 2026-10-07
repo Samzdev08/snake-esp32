@@ -10,13 +10,14 @@
 | Annexe du mandat de la documentation | Documentation |
 | Google Sheets | Planning |
 | Git | Suivi du code |
+| Canva | Réalisation des schémas (câblage, états, classes, maquette des écrans) |
 
 ## Bibliothèques
 
 Aucune utilisée pour l'instant.
 
 Prévues (à confirmer, avec version et licence quand je les installe) :
-- Bibliothèque pour l'OLED (Adafruit SSD1306 + GFX, ou U8g2)
+- Bibliothèque pour l'OLED (Adafruit SSD1306)
 - Preferences (meilleur score, incluse dans le core ESP32)
 
 | Bibliothèque | Version | Licence | Lien | Utilisation |
