@@ -30,3 +30,17 @@ Claude a proposé une arborescence pour Arduino IDE, un gitignore et des conseil
 Structure utilisée pour le dépôt
 
 ---
+
+
+## 08.10.2026 - Tutoriels (Instructables et Embedded Nerd) - Affichage OLED, grille et fruits
+
+**Besoin :**
+Afficher la grille sur l'OLED et placer des fruits au hasard
+
+**Assistance :**
+Deux tutoriels de Snake sur ESP32 avec OLED consultés (liens dans REFERENCES.md)
+
+**Utilisation / vérification :**
+Grâce à eux j'ai pu faire et « adaptée » la grille et afficher des fruits aléatoires
+
+---
