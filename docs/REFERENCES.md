@@ -7,10 +7,12 @@
 | Ressource | Utilisation |
 |---|---|
 | Mandat MonoGame (PDF du formateur) | Cadre du projet |
-| Annexe du mandat de la documentation | Documentation |
+| Annexe du mandat  | Documentation |
 | Google Sheets | Planning |
 | Git | Suivi du code |
 | Canva | Réalisation des schémas (câblage, états, classes, maquette des écrans) |
+| Arduino IDE | Écriture, compilation et téléversement du code sur l'ESP32 |
+
 
 ## Tutoriels et exemples consultés
 
@@ -18,12 +20,11 @@
 |---|---|---|---|---|
 | ESP32 OLED Snake Game - Best SSD1306 and Joystick Setup (Instructables) | instructables | 08.10.2026 | https://www.instructables.com/-ESP32-OLED-Snake-Game-Best-SSD1306-and-Joystick-S/ | Affichage OLED : grille et fruits aléatoires (jour 3) |
 | ESP32 Snake Game Tutorial: MPU6050 Tilt Control & OLED (Embedded Nerd) | Embedded Nerd | 08.10.2026 | https://embeddednerd.com/esp32-snake-game-with-mpu6050-and-oled-display/ | Affichage OLED : grille et fruits aléatoires (jour 3) |
-
+| Joystick Module – Getting Started (Elegoo Wiki) | Elegoo | 13.10.2026 | https://wiki.elegoo.com/oshw-getting-started-&-kits/joystick | Câblage du joystick et lecture du bouton SW (clic) en `INPUT_PULLUP` (jour 4) |
 
 ## Bibliothèques
 
 Prévues (à confirmer, avec version et licence quand je les installe) :
-
 
 | Bibliothèque | Version | Licence | Lien | Utilisation |
 |---|---|---|---|---|
@@ -31,12 +32,15 @@ Prévues (à confirmer, avec version et licence quand je les installe) :
 
 ## Code repris ou adapté
 
-
-
 | Source (lien) | Ce qui est repris | Où dans le projet | Adapté comment |
 |---|---|---|---|
-|  https://embeddednerd.com/esp32-snake-game-with-mpu6050-and-oled-display/| fonction randomFood() | Fichier `snake.ino` | Coordonnées en cases au lieu de pixels, décalage pour la bande de score |
+| https://embeddednerd.com/esp32-snake-game-with-mpu6050-and-oled-display/ | Fonction `randomFood()` | Fichier `snake.ino` | Coordonnées en cases au lieu de pixels, décalage pour la bande de score ; renommée `spawnFood()` |
+| https://wiki.elegoo.com/oshw-getting-started-&-kits/joystick | Configuration et lecture du bouton SW (`pinMode(SW_pin, INPUT_PULLUP)`, `digitalRead(SW_pin)`) | Fichier `snake.ino` – `afficherMenu()` et état `MENU` | Utilisé pour passer du menu au jeu, ajout d'un `delay(200)` contre les lectures multiples |
 
 ## Images, sons, polices
 
-Aucun pour l'instant
+| Ressource | Type | Licence | Lien | Utilisation |
+|---|---|---|---|---|
+
+
+Aucune image ni aucun son pour l'instant.
