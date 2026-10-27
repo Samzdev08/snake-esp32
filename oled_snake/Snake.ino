@@ -1,4 +1,7 @@
 #include <U8g2lib.h>
+#include <Preferences.h>
+
+Preferences preferences;
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
@@ -18,7 +21,7 @@ int gameSpeed = 180;
 int nextDirX = 1;
 int nextDirY = 0;
 
-int snakeLength = 5;
+int snakeLength = 3;
 
 int dirX = 1;
 int dirY = 0;
@@ -28,7 +31,7 @@ int snakeY[20];
 
 int centreX = 0;
 int centreY = 0;
-const int ZONE_MORTE = 1000;
+const int ZONE_MORTE = 500;
 
 
 enum Etat { MENU,
@@ -38,6 +41,7 @@ enum Etat { MENU,
 Etat etatJeux = MENU;
 
 int record = 0;
+int score = 0;
 
 
 int choixGameOver = 0;
@@ -72,14 +76,15 @@ void afficherMenu() {
 
 
 void declencherGameOver() {
-  int score = snakeLength - 5;
+
   if (score > record) {
-    record = score;
+    record = score;                        
+    preferences.putInt("record", record);  
   }
   choixGameOver = 0;
   etatJeux = GAME_OVER;
 
-  digitalWrite(BUZZER_pin, HIGH);
+  //digitalWrite(BUZZER_pin, HIGH);
   delay(400);
   digitalWrite(BUZZER_pin, LOW);
 }
@@ -93,8 +98,6 @@ void afficherGameOver() {
   } else if (x > 3000) {
     choixGameOver = 1;
   }
-
-  int score = snakeLength - 5;
 
   u8g2.clearBuffer();
 
@@ -120,7 +123,7 @@ void afficherGameOver() {
   u8g2.sendBuffer();
 
   if (digitalRead(SW_pin) == 0) {
-    digitalWrite(BUZZER_pin, HIGH);
+    //digitalWrite(BUZZER_pin, HIGH);
     delay(100);
     digitalWrite(BUZZER_pin, LOW);
 
@@ -141,16 +144,18 @@ void afficherGameOver() {
 }
 
 void reset() {
-  
+
   centreX = analogRead(X_pin);
   centreY = analogRead(Y_pin);
 
-  snakeLength = 5;
+  snakeLength = 3;
 
   dirX = 1;
   dirY = 0;
   nextDirX = 1;
   nextDirY = 0;
+
+  score = 0;
 
   snakeX[0] = 48;
   snakeY[0] = 32;
@@ -161,12 +166,6 @@ void reset() {
   snakeX[2] = 32;
   snakeY[2] = 32;
 
-  snakeX[3] = 24;
-  snakeY[3] = 32;
-
-  snakeX[4] = 16;
-  snakeY[4] = 32;
-
   spawnFood();
 }
 
@@ -174,9 +173,6 @@ void lireJoystick() {
 
   int x = analogRead(X_pin);
   int y = analogRead(Y_pin);
-
-  Serial.println(x);
-  Serial.println(y);
 
   int dx = x - centreX;
   int dy = y - centreY;
@@ -228,13 +224,23 @@ void afficherJeu() {
     lireJoystick();
 
     if (snakeX[0] == foodX && snakeY[0] == foodY) {
-      snakeLength++;
+
+      if (snakeLength >= 10) {
+
+        snakeLength = 10;
+      } else {
+
+        snakeLength++;
+      }
+
+      score += 2;
       spawnFood();
     }
   }
 
   u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(4, 10, "Score: 0");
+  String txtScore = "Score: " + String(score);
+  u8g2.drawStr(4, 10, txtScore.c_str());
 
   u8g2.drawHLine(0, 15, 128);
 
@@ -250,6 +256,10 @@ void afficherJeu() {
 }
 
 void setup() {
+
+  preferences.begin("snake", false);
+  record = preferences.getInt("record", record);
+
   pinMode(SW_pin, INPUT_PULLUP);
   pinMode(BUZZER_pin, OUTPUT);
   Serial.begin(115200);
@@ -268,12 +278,6 @@ void setup() {
   snakeX[2] = 32;
   snakeY[2] = 32;
 
-  snakeX[3] = 24;
-  snakeY[3] = 32;
-
-  snakeX[4] = 16;
-  snakeY[4] = 32;
-
   spawnFood();
 }
 
@@ -289,7 +293,7 @@ void loop() {
         if (isPressed == 0) {
 
           etatJeux = JEU;
-          digitalWrite(BUZZER_pin, HIGH);
+          //digitalWrite(BUZZER_pin, HIGH);
           delay(100);
           digitalWrite(BUZZER_pin, LOW);
           delay(200);
@@ -301,7 +305,6 @@ void loop() {
       afficherJeu();
 
       break;
-
 
     case GAME_OVER:
 
