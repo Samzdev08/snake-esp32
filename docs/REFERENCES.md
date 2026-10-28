@@ -26,6 +26,7 @@
 | Bibliothèque | Version | Licence | Lien | Utilisation |
 |---|---|---|---|---|
 | U8g2 | N/A | BSD-2-Clause | [GitHub – U8g2](https://github.com/olikraus/u8g2) | Affichage de textes et de formes graphiques sur l'écran OLED SSD1306 via I2C |
+| Preferences (incluse dans le noyau ESP32 pour Arduino) | N/A | LGPL-2.1 | [GitHub – arduino-esp32 / Preferences](https://github.com/espressif/arduino-esp32/tree/master/libraries/Preferences) | Sauvegarde du record dans la mémoire flash de l'ESP32 (`putInt()` / `getInt()`), conservé après une coupure de courant (jour 7) |
 
 ## Code repris ou adapté
 

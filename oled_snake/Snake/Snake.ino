@@ -16,7 +16,19 @@ const int BUZZER_pin = 5;
 
 int lastMove = 0;
 
-int gameSpeed = 180;
+
+const int VITESSE_DEPART = 180;
+const int VITESSE_MIN = 70;
+const int PAS_VITESSE = 8;
+int gameSpeed = VITESSE_DEPART;
+
+
+const int MAX_OBS = 5;
+const int FOOD_PAR_OBSTACLE = 3;
+int obsX[MAX_OBS];
+int obsY[MAX_OBS];
+int nbObs = 0;
+int nbManges = 0;
 
 int nextDirX = 1;
 int nextDirY = 0;
@@ -33,7 +45,6 @@ int centreX = 0;
 int centreY = 0;
 const int ZONE_MORTE = 500;
 
-
 enum Etat { MENU,
             JEU,
             GAME_OVER };
@@ -43,14 +54,49 @@ Etat etatJeux = MENU;
 int record = 0;
 int score = 0;
 
-
 int choixGameOver = 0;
 
+void bip(int ms) {
+  digitalWrite(BUZZER_pin, HIGH);
+  delay(ms);
+  digitalWrite(BUZZER_pin, LOW);
+}
+
+
+bool caseLibre(int x, int y) {
+  for (int i = 0; i < snakeLength; i++) {
+    if (snakeX[i] == x && snakeY[i] == y) return false;
+  }
+  for (int i = 0; i < nbObs; i++) {
+    if (obsX[i] == x && obsY[i] == y) return false;
+  }
+  return true;
+}
 
 void spawnFood() {
-  foodX = random(0, 128 / grid) * grid;
-  foodY = random(2, 64 / grid) * grid;
+  do {
+    foodX = random(0, 128 / grid) * grid;
+    foodY = random(2, 64 / grid) * grid;
+  } while (!caseLibre(foodX, foodY));
 }
+
+void spawnObstacle() {
+  if (nbObs >= MAX_OBS) return;
+
+  int x, y;
+  do {
+    x = random(0, 128 / grid) * grid;
+    y = random(2, 64 / grid) * grid;
+  } while (!caseLibre(x, y)
+           || (x == foodX && y == foodY)
+           || (abs(x - snakeX[0]) <= 2 * grid && abs(y - snakeY[0]) <= 2 * grid));
+
+
+  obsX[nbObs] = x;
+  obsY[nbObs] = y;
+  nbObs++;
+}
+
 
 void drawCentre(const char* txt, int y) {
   int x = (128 - u8g2.getStrWidth(txt)) / 2;
@@ -60,10 +106,8 @@ void drawCentre(const char* txt, int y) {
 void afficherMenu() {
   u8g2.clearBuffer();
 
-
   u8g2.setFont(u8g2_font_courB18_tf);
   drawCentre("SNAKE", 20);
-
 
   u8g2.setFont(u8g2_font_7x13_tf);
   String txt = "Record : " + String(record);
@@ -73,25 +117,18 @@ void afficherMenu() {
   u8g2.sendBuffer();
 }
 
-
-
 void declencherGameOver() {
-
   if (score > record) {
-    record = score;                        
-    preferences.putInt("record", record);  
+    record = score;
+    preferences.putInt("record", record);
   }
   choixGameOver = 0;
   etatJeux = GAME_OVER;
 
-  //digitalWrite(BUZZER_pin, HIGH);
-  delay(400);
-  digitalWrite(BUZZER_pin, LOW);
+  bip(400);
 }
 
 void afficherGameOver() {
-
-
   int x = analogRead(X_pin);
   if (x < 1000) {
     choixGameOver = 0;
@@ -113,7 +150,6 @@ void afficherGameOver() {
   u8g2.drawStr(14, 59, "Rejouer");
   u8g2.drawStr(84, 59, "Menu");
 
-
   if (choixGameOver == 0) {
     u8g2.drawFrame(10, 49, u8g2.getStrWidth("Rejouer") + 8, 13);
   } else {
@@ -123,10 +159,7 @@ void afficherGameOver() {
   u8g2.sendBuffer();
 
   if (digitalRead(SW_pin) == 0) {
-    //digitalWrite(BUZZER_pin, HIGH);
-    delay(100);
-    digitalWrite(BUZZER_pin, LOW);
-
+    bip(40);
 
     while (digitalRead(SW_pin) == 0) {
       delay(10);
@@ -135,7 +168,6 @@ void afficherGameOver() {
     if (choixGameOver == 0) {
       etatJeux = JEU;
       reset();
-
     } else {
       etatJeux = MENU;
       reset();
@@ -144,7 +176,6 @@ void afficherGameOver() {
 }
 
 void reset() {
-
   centreX = analogRead(X_pin);
   centreY = analogRead(Y_pin);
 
@@ -156,6 +187,9 @@ void reset() {
   nextDirY = 0;
 
   score = 0;
+  gameSpeed = VITESSE_DEPART;
+  nbObs = 0;
+  nbManges = 0;
 
   snakeX[0] = 48;
   snakeY[0] = 32;
@@ -170,7 +204,6 @@ void reset() {
 }
 
 void lireJoystick() {
-
   int x = analogRead(X_pin);
   int y = analogRead(Y_pin);
 
@@ -191,7 +224,6 @@ void lireJoystick() {
   }
 
   for (int i = snakeLength; i > 0; i--) {
-
     snakeX[i] = snakeX[i - 1];
     snakeY[i] = snakeY[i - 1];
   }
@@ -201,15 +233,13 @@ void lireJoystick() {
 }
 
 void afficherJeu() {
-
   u8g2.clearBuffer();
-
 
   for (int i = 0; i < snakeLength; i++) {
 
     if (snakeX[i] >= 0 && snakeX[i] + grid <= 128
-        && snakeY[i] >= 16 && snakeY[i] + grid <= 64) {
-
+        && snakeY[i] >= 16 && snakeY[i] + grid <= 64)
+      {
       u8g2.drawBox(snakeX[i], snakeY[i], grid, grid);
 
     } else {
@@ -219,22 +249,46 @@ void afficherJeu() {
   }
 
   if (millis() - lastMove > gameSpeed) {
-
     lastMove = millis();
     lireJoystick();
 
+
+    for (int i = 0; i < nbObs; i++) {
+      if (snakeX[0] == obsX[i] && snakeY[0] == obsY[i]) {
+        declencherGameOver();
+        return;
+      }
+    }
+
+    for (int i = 1; i < snakeLength; i++) {
+      if (snakeX[0] == snakeX[i] && snakeY[0] == snakeY[i]) {
+        declencherGameOver();
+        return;
+      }
+    }
+
+
     if (snakeX[0] == foodX && snakeY[0] == foodY) {
-
       if (snakeLength >= 10) {
-
         snakeLength = 10;
       } else {
-
         snakeLength++;
       }
 
       score += 2;
+      nbManges++;
+
+
+      gameSpeed -= PAS_VITESSE;
+      if (gameSpeed < VITESSE_MIN) gameSpeed = VITESSE_MIN;
+
+      bip(60);
       spawnFood();
+
+
+      if (nbManges % FOOD_PAR_OBSTACLE == 0) {
+        spawnObstacle();
+      }
     }
   }
 
@@ -250,24 +304,29 @@ void afficherJeu() {
     }
   }
 
+
+  for (int i = 0; i < nbObs; i++) {
+    u8g2.drawFrame(obsX[i], obsY[i], grid, grid);
+    u8g2.drawLine(obsX[i], obsY[i], obsX[i] + grid - 1, obsY[i] + grid - 1);
+    u8g2.drawLine(obsX[i] + grid - 1, obsY[i], obsX[i], obsY[i] + grid - 1);
+  }
+
   u8g2.drawFrame(foodX, foodY, grid, grid);
 
   u8g2.sendBuffer();
 }
 
 void setup() {
-
   preferences.begin("snake", false);
   record = preferences.getInt("record", record);
 
   pinMode(SW_pin, INPUT_PULLUP);
-  pinMode(BUZZER_pin, OUTPUT);
+    pinMode(BUZZER_pin, OUTPUT);
   Serial.begin(115200);
   u8g2.begin();
 
   centreX = analogRead(X_pin);
   centreY = analogRead(Y_pin);
-
 
   snakeX[0] = 48;
   snakeY[0] = 32;
@@ -285,31 +344,24 @@ void loop() {
   switch (etatJeux) {
     case MENU:
       {
-
         int isPressed = digitalRead(SW_pin);
 
         afficherMenu();
 
         if (isPressed == 0) {
-
           etatJeux = JEU;
-          //digitalWrite(BUZZER_pin, HIGH);
-          delay(100);
-          digitalWrite(BUZZER_pin, LOW);
+          reset();
+          bip(40);
           delay(200);
         }
         break;
       }
     case JEU:
-
       afficherJeu();
-
       break;
 
     case GAME_OVER:
-
       afficherGameOver();
-
       break;
   }
 }
