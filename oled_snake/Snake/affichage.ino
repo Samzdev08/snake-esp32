@@ -8,9 +8,9 @@
 static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 void initAffichage() {
+  u8g2.setI2CAddress(0x3C << 1);
   u8g2.begin();
 }
-
 static void drawCentre(const char* txt, int y) {
   int x = (LARGEUR_ECRAN - u8g2.getStrWidth(txt)) / 2;
   u8g2.drawStr(x, y, txt);

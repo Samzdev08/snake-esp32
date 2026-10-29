@@ -1,361 +1,45 @@
-#include <U8g2lib.h>
-#include <Preferences.h>
-
-Preferences preferences;
-
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
-
-int foodX = 0;
-int foodY = 0;
-int grid = 8;
-
-const int SW_pin = 12;
-const int X_pin = 34;
-const int Y_pin = 35;
-const int BUZZER_pin = 5;
-
-int lastMove = 0;
-
-
-const int VITESSE_DEPART = 180;
-const int VITESSE_MIN = 70;
-const int PAS_VITESSE = 8;
-int gameSpeed = VITESSE_DEPART;
-
-
-const int MAX_OBS = 5;
-const int FOOD_PAR_OBSTACLE = 3;
-int obsX[MAX_OBS];
-int obsY[MAX_OBS];
-int nbObs = 0;
-int nbManges = 0;
-
-int nextDirX = 1;
-int nextDirY = 0;
-
-int snakeLength = 3;
-
-int dirX = 1;
-int dirY = 0;
-
-int snakeX[20];
-int snakeY[20];
-
-int centreX = 0;
-int centreY = 0;
-const int ZONE_MORTE = 500;
-
-enum Etat { MENU,
-            JEU,
-            GAME_OVER };
-
-Etat etatJeux = MENU;
-
-int record = 0;
-int score = 0;
-
-int choixGameOver = 0;
-
-void bip(int ms) {
-  digitalWrite(BUZZER_pin, HIGH);
-  delay(ms);
-  digitalWrite(BUZZER_pin, LOW);
-}
-
-
-bool caseLibre(int x, int y) {
-  for (int i = 0; i < snakeLength; i++) {
-    if (snakeX[i] == x && snakeY[i] == y) return false;
-  }
-  for (int i = 0; i < nbObs; i++) {
-    if (obsX[i] == x && obsY[i] == y) return false;
-  }
-  return true;
-}
-
-void spawnFood() {
-  do {
-    foodX = random(0, 128 / grid) * grid;
-    foodY = random(2, 64 / grid) * grid;
-  } while (!caseLibre(foodX, foodY));
-}
-
-void spawnObstacle() {
-  if (nbObs >= MAX_OBS) return;
-
-  int x, y;
-  do {
-    x = random(0, 128 / grid) * grid;
-    y = random(2, 64 / grid) * grid;
-  } while (!caseLibre(x, y)
-           || (x == foodX && y == foodY)
-           || (abs(x - snakeX[0]) <= 2 * grid && abs(y - snakeY[0]) <= 2 * grid));
-
-
-  obsX[nbObs] = x;
-  obsY[nbObs] = y;
-  nbObs++;
-}
-
-
-void drawCentre(const char* txt, int y) {
-  int x = (128 - u8g2.getStrWidth(txt)) / 2;
-  u8g2.drawStr(x, y, txt);
-}
-
-void afficherMenu() {
-  u8g2.clearBuffer();
-
-  u8g2.setFont(u8g2_font_courB18_tf);
-  drawCentre("SNAKE", 20);
-
-  u8g2.setFont(u8g2_font_7x13_tf);
-  String txt = "Record : " + String(record);
-  drawCentre(txt.c_str(), 42);
-  drawCentre("Clic pour jouer", 60);
-
-  u8g2.sendBuffer();
-}
-
-void declencherGameOver() {
-  if (score > record) {
-    record = score;
-    preferences.putInt("record", record);
-  }
-  choixGameOver = 0;
-  etatJeux = GAME_OVER;
-
-  bip(400);
-}
-
-void afficherGameOver() {
-  int x = analogRead(X_pin);
-  if (x < 1000) {
-    choixGameOver = 0;
-  } else if (x > 3000) {
-    choixGameOver = 1;
-  }
-
-  u8g2.clearBuffer();
-
-  u8g2.setFont(u8g2_font_courB12_tf);
-  drawCentre("GAME OVER", 14);
-
-  u8g2.setFont(u8g2_font_6x10_tf);
-  String txtScore = "Score : " + String(score);
-  drawCentre(txtScore.c_str(), 30);
-  String txtRecord = "Record : " + String(record);
-  drawCentre(txtRecord.c_str(), 42);
-
-  u8g2.drawStr(14, 59, "Rejouer");
-  u8g2.drawStr(84, 59, "Menu");
-
-  if (choixGameOver == 0) {
-    u8g2.drawFrame(10, 49, u8g2.getStrWidth("Rejouer") + 8, 13);
-  } else {
-    u8g2.drawFrame(80, 49, u8g2.getStrWidth("Menu") + 8, 13);
-  }
-
-  u8g2.sendBuffer();
-
-  if (digitalRead(SW_pin) == 0) {
-    bip(40);
-
-    while (digitalRead(SW_pin) == 0) {
-      delay(10);
-    }
-
-    if (choixGameOver == 0) {
-      etatJeux = JEU;
-      reset();
-    } else {
-      etatJeux = MENU;
-      reset();
-    }
-  }
-}
-
-void reset() {
-  centreX = analogRead(X_pin);
-  centreY = analogRead(Y_pin);
-
-  snakeLength = 3;
-
-  dirX = 1;
-  dirY = 0;
-  nextDirX = 1;
-  nextDirY = 0;
-
-  score = 0;
-  gameSpeed = VITESSE_DEPART;
-  nbObs = 0;
-  nbManges = 0;
-
-  snakeX[0] = 48;
-  snakeY[0] = 32;
-
-  snakeX[1] = 40;
-  snakeY[1] = 32;
-
-  snakeX[2] = 32;
-  snakeY[2] = 32;
-
-  spawnFood();
-}
-
-void lireJoystick() {
-  int x = analogRead(X_pin);
-  int y = analogRead(Y_pin);
-
-  int dx = x - centreX;
-  int dy = y - centreY;
-
-  if (abs(dx) > abs(dy) && abs(dx) > ZONE_MORTE) {
-    nextDirX = (dx > 0) ? 1 : -1;
-    nextDirY = 0;
-  } else if (abs(dy) > abs(dx) && abs(dy) > ZONE_MORTE) {
-    nextDirX = 0;
-    nextDirY = (dy > 0) ? 1 : -1;
-  }
-
-  if (!(nextDirX == -dirX && nextDirY == -dirY)) {
-    dirX = nextDirX;
-    dirY = nextDirY;
-  }
-
-  for (int i = snakeLength; i > 0; i--) {
-    snakeX[i] = snakeX[i - 1];
-    snakeY[i] = snakeY[i - 1];
-  }
-
-  snakeX[0] += dirX * grid;
-  snakeY[0] += dirY * grid;
-}
-
-void afficherJeu() {
-  u8g2.clearBuffer();
-
-  for (int i = 0; i < snakeLength; i++) {
-
-    if (snakeX[i] >= 0 && snakeX[i] + grid <= 128
-        && snakeY[i] >= 16 && snakeY[i] + grid <= 64)
-      {
-      u8g2.drawBox(snakeX[i], snakeY[i], grid, grid);
-
-    } else {
-      declencherGameOver();
-      return;
-    }
-  }
-
-  if (millis() - lastMove > gameSpeed) {
-    lastMove = millis();
-    lireJoystick();
-
-
-    for (int i = 0; i < nbObs; i++) {
-      if (snakeX[0] == obsX[i] && snakeY[0] == obsY[i]) {
-        declencherGameOver();
-        return;
-      }
-    }
-
-    for (int i = 1; i < snakeLength; i++) {
-      if (snakeX[0] == snakeX[i] && snakeY[0] == snakeY[i]) {
-        declencherGameOver();
-        return;
-      }
-    }
-
-
-    if (snakeX[0] == foodX && snakeY[0] == foodY) {
-      if (snakeLength >= 10) {
-        snakeLength = 10;
-      } else {
-        snakeLength++;
-      }
-
-      score += 2;
-      nbManges++;
-
-
-      gameSpeed -= PAS_VITESSE;
-      if (gameSpeed < VITESSE_MIN) gameSpeed = VITESSE_MIN;
-
-      bip(60);
-      spawnFood();
-
-
-      if (nbManges % FOOD_PAR_OBSTACLE == 0) {
-        spawnObstacle();
-      }
-    }
-  }
-
-  u8g2.setFont(u8g2_font_6x10_tf);
-  String txtScore = "Score: " + String(score);
-  u8g2.drawStr(4, 10, txtScore.c_str());
-
-  u8g2.drawHLine(0, 15, 128);
-
-  for (int y = 16; y < 64; y += grid) {
-    for (int x = 0; x < 128; x += grid) {
-      u8g2.drawPixel(x, y);
-    }
-  }
-
-
-  for (int i = 0; i < nbObs; i++) {
-    u8g2.drawFrame(obsX[i], obsY[i], grid, grid);
-    u8g2.drawLine(obsX[i], obsY[i], obsX[i] + grid - 1, obsY[i] + grid - 1);
-    u8g2.drawLine(obsX[i] + grid - 1, obsY[i], obsX[i], obsY[i] + grid - 1);
-  }
-
-  u8g2.drawFrame(foodX, foodY, grid, grid);
-
-  u8g2.sendBuffer();
-}
+#include <Arduino.h>
+#include "config.h"
+#include "etat.h"
+#include "jeu.h"
+#include "affichage.h"
+#include "son.h"
+#include "reseau.h"
 
 void setup() {
-  preferences.begin("snake", false);
-  record = preferences.getInt("record", record);
+  Serial.begin(115200);
 
   pinMode(SW_pin, INPUT_PULLUP);
-    pinMode(BUZZER_pin, OUTPUT);
-  Serial.begin(115200);
-  u8g2.begin();
+  pinMode(BUZZER_pin, OUTPUT);
 
-  centreX = analogRead(X_pin);
-  centreY = analogRead(Y_pin);
-
-  snakeX[0] = 48;
-  snakeY[0] = 32;
-
-  snakeX[1] = 40;
-  snakeY[1] = 32;
-
-  snakeX[2] = 32;
-  snakeY[2] = 32;
-
-  spawnFood();
+  
+  initAffichage();
+  initialiserJeu();
+  initWifi();
 }
 
 void loop() {
+
+
   switch (etatJeux) {
     case MENU:
-      {
-        int isPressed = digitalRead(SW_pin);
+      mettreAJourMenu();
+      break;
 
-        afficherMenu();
+    case JEU:
+      mettreAJourJeu();
+      break;
 
-        if (isPressed == 0) {
-          etatJeux = JEU;
-          reset();
-          bip(40);
-          delay(200);
-        }
-        break;
-      }
+    case GAME_OVER:
+      mettreAJourGameOver();
+      break;
+  }
+
+  switch (etatJeux) {
+    case MENU:
+      afficherMenu();
+      break;
+
     case JEU:
       afficherJeu();
       break;
@@ -364,4 +48,6 @@ void loop() {
       afficherGameOver();
       break;
   }
+
+  mettreAJourWifi();
 }
