@@ -75,32 +75,32 @@ void initialiserJeu() {
 
 
 static void lireJoystick() {
-  int x = analogRead(X_pin);
-  int y = analogRead(Y_pin);
 
-  int dx = x - centreX;
-  int dy = y - centreY;
 
-  if (abs(dx) > abs(dy) && abs(dx) > ZONE_MORTE) {
+  int dx = analogRead(X_pin) - centreX;
+  int dy = analogRead(Y_pin) - centreY;
 
-    nextDirX = (dx > 0) ? 1 : -1;
-    nextDirY = 0;
-
-  } else if (abs(dy) > abs(dx) && abs(dy) > ZONE_MORTE) {
-
-    nextDirX = 0;
-    nextDirY = (dy > 0) ? 1 : -1;
-
+  if (abs(dx) <= ZONE_MORTE && abs(dy) <= ZONE_MORTE) {
+    return;
   }
 
+  int nouvelleDirX = dirX;
+  int nouvelleDirY = dirY;
 
-  if (!(nextDirX == -dirX && nextDirY == -dirY)) {
+  if (abs(dx) > abs(dy)) {
+    nouvelleDirX = (dx > 0) ? 1 : -1;
+    nouvelleDirY = 0;
+  } else {
+    nouvelleDirX = 0;
+    nouvelleDirY = (dy > 0) ? 1 : -1;
+  }
 
-    dirX = nextDirX;
-    dirY = nextDirY;
-
+  if (nouvelleDirX != -dirX || nouvelleDirY != -dirY) {
+    dirX = nouvelleDirX;
+    dirY = nouvelleDirY;
   }
 }
+
 
 
 static void deplacerSerpent() {
@@ -109,12 +109,10 @@ static void deplacerSerpent() {
 
     snakeX[i] = snakeX[i - 1];
     snakeY[i] = snakeY[i - 1];
-
   }
 
   snakeX[0] += dirX * grid;
   snakeY[0] += dirY * grid;
-
 }
 
 static void declencherGameOver() {
@@ -123,14 +121,12 @@ static void declencherGameOver() {
 
     record = score;
     preferences.putInt("record", record);
-
   }
 
   choixGameOver = 0;
   etatJeux = GAME_OVER;
 
   bip(400);
-
 }
 
 void mettreAJourMenu() {
@@ -141,9 +137,7 @@ void mettreAJourMenu() {
     reset();
     bip(40);
     delay(200);
-
   }
-
 }
 
 void mettreAJourJeu() {
@@ -155,14 +149,29 @@ void mettreAJourJeu() {
   lireJoystick();
   deplacerSerpent();
 
-  
-  if (snakeX[0] < 0 || snakeX[0] + grid > LARGEUR_ECRAN
-      || snakeY[0] < HAUT_ZONE_JEU || snakeY[0] + grid > HAUTEUR_ECRAN) {
-    declencherGameOver();
-    return;
+  if (snakeX[0] < 0) {
+
+    snakeX[0] = LARGEUR_ECRAN - grid;
+
+  } 
+  else if (snakeX[0] >= LARGEUR_ECRAN) 
+  {
+    snakeX[0] = 0;
+
   }
 
-  
+  if (snakeY[0] < HAUT_ZONE_JEU) {
+
+    snakeY[0] = HAUTEUR_ECRAN - grid;
+
+  } 
+  else if (snakeY[0] >= HAUTEUR_ECRAN) {
+
+    snakeY[0] = HAUT_ZONE_JEU;
+
+  }
+
+
   for (int i = 0; i < nbObs; i++) {
     if (snakeX[0] == obsX[i] && snakeY[0] == obsY[i]) {
       declencherGameOver();
@@ -170,7 +179,7 @@ void mettreAJourJeu() {
     }
   }
 
-  
+
   for (int i = 1; i < snakeLength; i++) {
     if (snakeX[0] == snakeX[i] && snakeY[0] == snakeY[i]) {
       declencherGameOver();
@@ -195,7 +204,6 @@ void mettreAJourJeu() {
     if (nbManges % FOOD_PAR_OBSTACLE == 0) {
       spawnObstacle();
     }
-
   }
 }
 
@@ -218,5 +226,4 @@ void mettreAJourGameOver() {
     etatJeux = (choixGameOver == 0) ? JEU : MENU;
     reset();
   }
-  
 }
