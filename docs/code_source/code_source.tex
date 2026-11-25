@@ -67,7 +67,6 @@ Programme principal : setup() et boucle de jeu.
 #include "jeu.h"
 #include "affichage.h"
 #include "son.h"
-#include "reseau.h"
 
 void setup() {
   Serial.begin(115200);
@@ -605,11 +604,6 @@ void bip(int ms) {
 }
 \end{lstlisting}
 
-\section{reseau.h}
-Interface réseau.
-
-\textit{Fichier vide.}
-
 \section{wifi.ino}
 Wi-Fi, serveur web et WebSocket.
 
@@ -619,7 +613,6 @@ Wi-Fi, serveur web et WebSocket.
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 
-#include "reseau.h"
 #include "etat.h"
 #include "page.h"
 

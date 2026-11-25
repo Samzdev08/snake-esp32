@@ -4,7 +4,6 @@
 #include "jeu.h"
 #include "affichage.h"
 #include "son.h"
-#include "reseau.h"
 
 void setup() {
   Serial.begin(115200);
