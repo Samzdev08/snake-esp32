@@ -1,0 +1,1126 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage[scaled=0.85]{beramono}
+\usepackage[margin=2cm]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{textcomp}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{fond}{RGB}{248,248,248}
+\definecolor{motcle}{RGB}{0,0,160}
+\definecolor{commentaire}{RGB}{0,120,0}
+\definecolor{chaine}{RGB}{163,21,21}
+\definecolor{numero}{RGB}{140,140,140}
+
+\lstdefinestyle{arduino}{
+  language=C++,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{motcle}\bfseries,
+  commentstyle=\color{commentaire}\itshape,
+  stringstyle=\color{chaine},
+  numbers=left,
+  numberstyle=\tiny\color{numero},
+  numbersep=8pt,
+  backgroundcolor=\color{fond},
+  frame=single,
+  rulecolor=\color{numero},
+  breaklines=true,
+  postbreak=\mbox{\textcolor{numero}{$\hookrightarrow$}\space},
+  showstringspaces=false,
+  tabsize=2,
+  columns=fullflexible,
+  keepspaces=true,
+  upquote=true,
+  extendedchars=true,
+  morekeywords={uint8_t,uint16_t,uint32_t,size_t,byte,boolean,String,PROGMEM},
+  literate={é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1 {ç}{{\c{c}}}1
+           {ù}{{\`u}}1 {ô}{{\^o}}1 {î}{{\^i}}1 {É}{{\'E}}1 {·}{{\textperiodcentered}}1
+}
+\lstset{style=arduino}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Snake ESP32 -- code source}
+\fancyhead[R]{\nouppercase{\rightmark}}
+\fancyfoot[C]{\thepage}
+
+\title{Snake ESP32\\[0.3em]\large Code source du projet}
+\author{}
+\date{25/11/2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+\section{Snake.ino}
+Programme principal : setup() et boucle de jeu.
+
+\begin{lstlisting}
+#include <Arduino.h>
+#include "config.h"
+#include "etat.h"
+#include "jeu.h"
+#include "affichage.h"
+#include "son.h"
+#include "reseau.h"
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(SW_pin, INPUT_PULLUP);
+  pinMode(BUZZER_pin, OUTPUT);
+
+  
+  initAffichage();
+  initialiserJeu();
+  initWifi();
+}
+
+void loop() {
+
+
+  switch (etatJeux) {
+    case MENU:
+      mettreAJourMenu();
+      break;
+
+    case JEU:
+      mettreAJourJeu();
+      break;
+
+    case GAME_OVER:
+      mettreAJourGameOver();
+      break;
+  }
+
+  switch (etatJeux) {
+    case MENU:
+      afficherMenu();
+      break;
+
+    case JEU:
+      afficherJeu();
+      break;
+
+    case GAME_OVER:
+      afficherGameOver();
+      break;
+  }
+
+  mettreAJourWifi();
+}
+\end{lstlisting}
+
+\section{config.h}
+Constantes : broches, dimensions, vitesse, obstacles.
+
+\begin{lstlisting}
+#pragma once
+
+
+const int SW_pin = 12;
+const int X_pin = 34;
+const int Y_pin = 35;
+const int BUZZER_pin = 5;
+
+
+const int LARGEUR_ECRAN = 128;
+const int HAUTEUR_ECRAN = 64;
+const int HAUT_ZONE_JEU = 16;  
+const int grid = 8;
+
+
+const int TAILLE_MAX_SERPENT = 20;   
+const int LONGUEUR_MAX = 10;         
+
+
+const int VITESSE_DEPART = 180;
+const int VITESSE_MIN = 70;
+const int PAS_VITESSE = 8;
+
+
+const int MAX_OBS = 5;
+const int FOOD_PAR_OBSTACLE = 3;
+
+
+const int ZONE_MORTE = 500;
+\end{lstlisting}
+
+\section{etat.h}
+Déclaration de l\textquotesingle{}état global du jeu.
+
+\begin{lstlisting}
+#pragma once
+#include <Preferences.h>
+#include "config.h"
+
+enum Etat { MENU, JEU, GAME_OVER };
+
+
+extern Preferences preferences;
+extern Etat etatJeux;
+extern int score;
+extern int record;
+extern int choixGameOver;
+
+
+extern int snakeLength;
+extern int snakeX[TAILLE_MAX_SERPENT];
+extern int snakeY[TAILLE_MAX_SERPENT];
+extern int dirX;
+extern int dirY;
+extern int nextDirX;
+extern int nextDirY;
+
+
+extern int foodX;
+extern int foodY;
+extern int obsX[MAX_OBS];
+extern int obsY[MAX_OBS];
+extern int nbObs;
+extern int nbManges;
+
+
+extern int gameSpeed;
+extern unsigned long lastMove;
+extern int centreX;
+extern int centreY;
+\end{lstlisting}
+
+\section{etat.ino}
+Définition de l\textquotesingle{}état global du jeu.
+
+\begin{lstlisting}
+#include "etat.h"
+
+
+Preferences preferences;
+Etat etatJeux = MENU;
+int score = 0;
+int record = 0;
+int choixGameOver = 0;
+
+int snakeLength = 3;
+int snakeX[TAILLE_MAX_SERPENT];
+int snakeY[TAILLE_MAX_SERPENT];
+int dirX = 1;
+int dirY = 0;
+int nextDirX = 1;
+int nextDirY = 0;
+
+int foodX = 0;
+int foodY = 0;
+int obsX[MAX_OBS];
+int obsY[MAX_OBS];
+int nbObs = 0;
+int nbManges = 0;
+
+int gameSpeed = VITESSE_DEPART;
+unsigned long lastMove = 0;
+int centreX = 0;
+int centreY = 0;
+\end{lstlisting}
+
+\section{jeu.h}
+Interface de la logique de jeu.
+
+\begin{lstlisting}
+#pragma once
+
+void initialiserJeu();       
+void reset();               
+void mettreAJourMenu();     
+void mettreAJourJeu();     
+void mettreAJourGameOver();
+\end{lstlisting}
+
+\section{jeu.ino}
+Logique de jeu : serpent, nourriture, obstacles, collisions.
+
+\begin{lstlisting}
+#include <Arduino.h>
+#include "jeu.h"
+#include "config.h"
+#include "etat.h"
+#include "son.h"
+
+
+
+static bool caseLibre(int x, int y) {
+  for (int i = 0; i < snakeLength; i++) {
+    if (snakeX[i] == x && snakeY[i] == y) return false;
+  }
+  for (int i = 0; i < nbObs; i++) {
+    if (obsX[i] == x && obsY[i] == y) return false;
+  }
+  return true;
+}
+
+static void spawnFood() {
+  do {
+    foodX = random(0, LARGEUR_ECRAN / grid) * grid;
+    foodY = random(2, HAUTEUR_ECRAN / grid) * grid;
+  } while (!caseLibre(foodX, foodY));
+}
+
+static void spawnObstacle() {
+  if (nbObs >= MAX_OBS) return;
+
+  int x, y;
+  do {
+    x = random(0, LARGEUR_ECRAN / grid) * grid;
+    y = random(2, HAUTEUR_ECRAN / grid) * grid;
+  } while (!caseLibre(x, y)
+           || (x == foodX && y == foodY)
+           || (abs(x - snakeX[0]) <= 2 * grid && abs(y - snakeY[0]) <= 2 * grid));
+
+  obsX[nbObs] = x;
+  obsY[nbObs] = y;
+  nbObs++;
+}
+
+void reset() {
+  centreX = analogRead(X_pin);
+  centreY = analogRead(Y_pin);
+
+  snakeLength = 3;
+
+  dirX = 1;
+  dirY = 0;
+  nextDirX = 1;
+  nextDirY = 0;
+
+  score = 0;
+  gameSpeed = VITESSE_DEPART;
+  nbObs = 0;
+  nbManges = 0;
+
+  snakeX[0] = 48;
+  snakeY[0] = 32;
+
+  snakeX[1] = 40;
+  snakeY[1] = 32;
+
+  snakeX[2] = 32;
+  snakeY[2] = 32;
+
+  spawnFood();
+}
+
+void initialiserJeu() {
+  preferences.begin("snake", false);
+  record = preferences.getInt("record", 0);
+  reset();
+}
+
+
+static void lireJoystick() {
+
+
+  int dx = analogRead(X_pin) - centreX;
+  int dy = analogRead(Y_pin) - centreY;
+
+  if (abs(dx) <= ZONE_MORTE && abs(dy) <= ZONE_MORTE) {
+    return;
+  }
+
+  int nouvelleDirX = dirX;
+  int nouvelleDirY = dirY;
+
+  if (abs(dx) > abs(dy)) {
+    nouvelleDirX = (dx > 0) ? 1 : -1;
+    nouvelleDirY = 0;
+  } else {
+    nouvelleDirX = 0;
+    nouvelleDirY = (dy > 0) ? 1 : -1;
+  }
+
+  if (nouvelleDirX != -dirX || nouvelleDirY != -dirY) {
+    dirX = nouvelleDirX;
+    dirY = nouvelleDirY;
+  }
+}
+
+
+
+static void deplacerSerpent() {
+
+  for (int i = snakeLength; i > 0; i--) {
+
+    snakeX[i] = snakeX[i - 1];
+    snakeY[i] = snakeY[i - 1];
+  }
+
+  snakeX[0] += dirX * grid;
+  snakeY[0] += dirY * grid;
+}
+
+static void declencherGameOver() {
+
+  if (score > record) {
+
+    record = score;
+    preferences.putInt("record", record);
+  }
+
+  choixGameOver = 0;
+  etatJeux = GAME_OVER;
+
+  bip(400);
+}
+
+void mettreAJourMenu() {
+
+  if (digitalRead(SW_pin) == 0) {
+
+    etatJeux = JEU;
+    reset();
+    bip(40);
+    delay(200);
+  }
+}
+
+void mettreAJourJeu() {
+
+  if (millis() - lastMove <= gameSpeed) return;
+
+  lastMove = millis();
+
+  lireJoystick();
+  deplacerSerpent();
+
+  if (snakeX[0] < 0) {
+
+    snakeX[0] = LARGEUR_ECRAN - grid;
+
+  } 
+  else if (snakeX[0] >= LARGEUR_ECRAN) 
+  {
+    snakeX[0] = 0;
+
+  }
+
+  if (snakeY[0] < HAUT_ZONE_JEU) {
+
+    snakeY[0] = HAUTEUR_ECRAN - grid;
+
+  } 
+  else if (snakeY[0] >= HAUTEUR_ECRAN) {
+
+    snakeY[0] = HAUT_ZONE_JEU;
+
+  }
+
+
+  for (int i = 0; i < nbObs; i++) {
+    if (snakeX[0] == obsX[i] && snakeY[0] == obsY[i]) {
+      declencherGameOver();
+      return;
+    }
+  }
+
+
+  for (int i = 1; i < snakeLength; i++) {
+    if (snakeX[0] == snakeX[i] && snakeY[0] == snakeY[i]) {
+      declencherGameOver();
+      return;
+    }
+  }
+
+
+  if (snakeX[0] == foodX && snakeY[0] == foodY) {
+
+    if (snakeLength < LONGUEUR_MAX) snakeLength++;
+
+    score += 2;
+    nbManges++;
+
+    gameSpeed -= PAS_VITESSE;
+    if (gameSpeed < VITESSE_MIN) gameSpeed = VITESSE_MIN;
+
+    bip(60);
+    spawnFood();
+
+    if (nbManges % FOOD_PAR_OBSTACLE == 0) {
+      spawnObstacle();
+    }
+  }
+}
+
+void mettreAJourGameOver() {
+
+  int x = analogRead(X_pin);
+  if (x < 1000) {
+    choixGameOver = 0;
+  } else if (x > 3000) {
+    choixGameOver = 1;
+  }
+
+  if (digitalRead(SW_pin) == 0) {
+    bip(40);
+
+    while (digitalRead(SW_pin) == 0) {
+      delay(10);
+    }
+
+    etatJeux = (choixGameOver == 0) ? JEU : MENU;
+    reset();
+  }
+}
+\end{lstlisting}
+
+\section{affichage.h}
+Interface de l\textquotesingle{}affichage OLED.
+
+\begin{lstlisting}
+#pragma once
+
+void initAffichage();
+void afficherMenu();
+void afficherJeu();
+void afficherGameOver();
+\end{lstlisting}
+
+\section{affichage.ino}
+Affichage OLED : menu, jeu, game over.
+
+\begin{lstlisting}
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include "affichage.h"
+#include "config.h"
+#include "etat.h"
+
+
+static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
+
+void initAffichage() {
+  u8g2.setI2CAddress(0x3C << 1);
+  u8g2.begin();
+}
+static void drawCentre(const char* txt, int y) {
+  int x = (LARGEUR_ECRAN - u8g2.getStrWidth(txt)) / 2;
+  u8g2.drawStr(x, y, txt);
+}
+
+void afficherMenu() {
+  u8g2.clearBuffer();
+
+  u8g2.setFont(u8g2_font_courB18_tf);
+  drawCentre("SNAKE", 20);
+
+  u8g2.setFont(u8g2_font_7x13_tf);
+  String txt = "Record : " + String(record);
+  drawCentre(txt.c_str(), 42);
+  drawCentre("Clic pour jouer", 60);
+
+  u8g2.sendBuffer();
+}
+
+void afficherJeu() {
+  u8g2.clearBuffer();
+
+
+  for (int i = 0; i < snakeLength; i++) {
+    u8g2.drawBox(snakeX[i], snakeY[i], grid, grid);
+  }
+
+
+  u8g2.setFont(u8g2_font_6x10_tf);
+  String txtScore = "Score: " + String(score);
+  u8g2.drawStr(4, 10, txtScore.c_str());
+  u8g2.drawHLine(0, 15, LARGEUR_ECRAN);
+
+
+  for (int y = HAUT_ZONE_JEU; y < HAUTEUR_ECRAN; y += grid) {
+    for (int x = 0; x < LARGEUR_ECRAN; x += grid) {
+      u8g2.drawPixel(x, y);
+    }
+  }
+
+
+  for (int i = 0; i < nbObs; i++) {
+    u8g2.drawFrame(obsX[i], obsY[i], grid, grid);
+    u8g2.drawLine(obsX[i], obsY[i], obsX[i] + grid - 1, obsY[i] + grid - 1);
+    u8g2.drawLine(obsX[i] + grid - 1, obsY[i], obsX[i], obsY[i] + grid - 1);
+  }
+
+
+  u8g2.drawFrame(foodX, foodY, grid, grid);
+
+  u8g2.sendBuffer();
+}
+
+void afficherGameOver() {
+  u8g2.clearBuffer();
+
+  u8g2.setFont(u8g2_font_courB12_tf);
+  drawCentre("GAME OVER", 14);
+
+  u8g2.setFont(u8g2_font_6x10_tf);
+  String txtScore = "Score : " + String(score);
+  drawCentre(txtScore.c_str(), 30);
+  String txtRecord = "Record : " + String(record);
+  drawCentre(txtRecord.c_str(), 42);
+
+  u8g2.drawStr(14, 59, "Rejouer");
+  u8g2.drawStr(84, 59, "Menu");
+
+  if (choixGameOver == 0) {
+    u8g2.drawFrame(10, 49, u8g2.getStrWidth("Rejouer") + 8, 13);
+  } else {
+    u8g2.drawFrame(80, 49, u8g2.getStrWidth("Menu") + 8, 13);
+  }
+
+  u8g2.sendBuffer();
+}
+\end{lstlisting}
+
+\section{son.h}
+Interface du buzzer.
+
+\begin{lstlisting}
+#pragma once
+
+void bip(int ms);
+\end{lstlisting}
+
+\section{son.ino}
+Gestion du buzzer.
+
+\begin{lstlisting}
+#include <Arduino.h>
+#include "son.h"
+#include "config.h"
+
+void bip(int ms) {
+  digitalWrite(BUZZER_pin, HIGH);
+  delay(ms);
+  digitalWrite(BUZZER_pin, LOW);
+}
+\end{lstlisting}
+
+\section{reseau.h}
+Interface réseau.
+
+\textit{Fichier vide.}
+
+\section{wifi.ino}
+Wi-Fi, serveur web et WebSocket.
+
+\begin{lstlisting}
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+
+#include "reseau.h"
+#include "etat.h"
+#include "page.h"
+
+const char* ssid = "ESP32-MonReseau";
+const char* password = "12345678";
+
+WebServer server(80);
+WebSocketsServer webSocket(81);
+
+String dernierEtatEnvoye;
+
+String construireEtatJeu() {
+  String json;
+  json.reserve(1500);
+
+  json = "{\"score\":" + String(score);
+  json += ",\"record\":" + String(record);
+  json += ",\"etat\":" + String((int)etatJeux);
+  json += ",\"choixGameOver\":" + String(choixGameOver);
+  json += ",\"foodX\":" + String(foodX);
+  json += ",\"foodY\":" + String(foodY);
+  json += ",\"serpent\":[";
+
+  for (int i = 0; i < snakeLength; i++) {
+    if (i > 0) {
+      json += ",";
+    }
+
+    json += "{\"x\":" + String(snakeX[i]);
+    json += ",\"y\":" + String(snakeY[i]) + "}";
+  }
+
+  json += "],\"obstacles\":[";
+
+  for (int i = 0; i < nbObs; i++) {
+    if (i > 0) {
+      json += ",";
+    }
+
+    json += "{\"x\":" + String(obsX[i]);
+    json += ",\"y\":" + String(obsY[i]) + "}";
+  }
+
+  json += "]}";
+
+  return json;
+}
+
+void handleRoot() {
+  server.sendHeader("Cache-Control", "no-store");
+  server.send_P(200, "text/html; charset=utf-8", PAGE_HTML);
+}
+
+void initWifi() {
+  WiFi.mode(WIFI_AP);
+
+  if (!WiFi.softAP(ssid, password)) {
+    Serial.println("Erreur : creation du reseau Wi-Fi impossible");
+    return;
+  }
+
+  Serial.print("Reseau Wi-Fi : ");
+  Serial.println(ssid);
+
+  Serial.print("Adresse IP : ");
+  Serial.println(WiFi.softAPIP());
+
+  server.on("/", handleRoot);
+  server.begin();
+
+  webSocket.begin();
+
+  webSocket.onEvent(
+    [](uint8_t client, WStype_t type, uint8_t* payload, size_t length) {
+      if (type == WStype_CONNECTED) {
+        String json = construireEtatJeu();
+        webSocket.sendTXT(client, json);
+      }
+    }
+  );
+
+  Serial.println("Serveur web et WebSocket demarres");
+}
+
+void mettreAJourWifi() {
+  server.handleClient();
+  webSocket.loop();
+
+  String json = construireEtatJeu();
+
+  if (json != dernierEtatEnvoye) {
+    webSocket.broadcastTXT(json);
+    dernierEtatEnvoye = json;
+  }
+}
+\end{lstlisting}
+
+\section{page.h}
+Page web embarquée (HTML / CSS / JavaScript).
+
+\begin{lstlisting}
+#pragma once
+#include <Arduino.h>
+
+const char PAGE_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake ESP32</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0b121a;
+      color: #eef6ff;
+      font-family: Arial, sans-serif;
+    }
+
+    main {
+      width: min(100%, 960px);
+    }
+
+    header, .scores, footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 5vw, 40px);
+    }
+
+    #connexion {
+      color: #ffca75;
+      font-size: 14px;
+    }
+
+    .scores {
+      margin-bottom: 16px;
+      padding: 16px 20px;
+      background: #17232f;
+      border-radius: 12px;
+      font-size: clamp(16px, 3vw, 24px);
+    }
+
+    strong {
+      color: #a9ff83;
+    }
+
+    .terrain {
+      position: relative;
+      overflow: hidden;
+      border: 2px solid #304555;
+      border-radius: 14px;
+      background: #111e29;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      image-rendering: pixelated;
+    }
+
+    .ecran {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 12px;
+      background: rgba(11, 18, 26, 0.95);
+      text-align: center;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    h2 {
+      margin: 0;
+      color: #a9ff83;
+      font-size: clamp(26px, 6vw, 64px);
+    }
+
+    p {
+      margin: 0;
+      color: #b2c4d2;
+      font-size: clamp(12px, 2.2vw, 20px);
+    }
+
+    #gameOver h2 {
+      color: #ff7589;
+    }
+
+    .choix {
+      display: flex;
+      gap: 16px;
+    }
+
+    .option {
+      padding: 10px 24px;
+      border: 2px solid #425768;
+      border-radius: 10px;
+      color: #b2c4d2;
+      font-size: clamp(14px, 2.5vw, 22px);
+    }
+
+    .option.selection {
+      color: #0b121a;
+      background: #a9ff83;
+      border-color: #a9ff83;
+      font-weight: bold;
+    }
+
+    footer {
+      margin-top: 18px;
+      color: #91a8ba;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: 1px solid #425768;
+      border-radius: 8px;
+      background: #17232f;
+      color: #eef6ff;
+      cursor: pointer;
+    }
+
+    @media (max-width: 550px) {
+      body {
+        padding: 12px;
+      }
+
+      .ecran {
+        gap: 6px;
+      }
+
+      .option {
+        padding: 6px 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>Snake ESP32</h1>
+      <span id="connexion" role="status">Connexion...</span>
+    </header>
+
+    <div class="scores">
+      <span>Score : <strong id="score">0</strong></span>
+      <span>Record : <strong id="record">0</strong></span>
+    </div>
+
+    <div class="terrain">
+      <canvas id="terrain" width="128" height="48"></canvas>
+
+      <section id="attente" class="ecran">
+        <h2>Connexion...</h2>
+        <p>En attente du jeu sur l'ESP32</p>
+      </section>
+
+      <section id="menu" class="ecran" hidden>
+        <h2>SNAKE</h2>
+        <p>Record : <strong id="recordMenu">0</strong></p>
+        <p>Appuie sur le joystick pour jouer</p>
+      </section>
+
+      <section id="gameOver" class="ecran" hidden>
+        <h2>GAME OVER</h2>
+
+        <p>
+          Score : <strong id="scoreFinal">0</strong>
+          | Record : <strong id="recordFinal">0</strong>
+        </p>
+
+        <div class="choix">
+          <span id="rejouer" class="option">Rejouer</span>
+          <span id="retourMenu" class="option">Menu</span>
+        </div>
+
+        <p>Gauche / droite pour choisir · Clic pour valider</p>
+      </section>
+    </div>
+
+    <footer>
+      <span>Commandes sur le joystick de l'ESP32</span>
+      <button id="pleinEcran" type="button">Plein écran</button>
+    </footer>
+  </main>
+
+  <script>
+    const MENU = 0;
+    const JEU = 1;
+    const GAME_OVER = 2;
+
+    const GRILLE = 8;
+    const HAUT_ZONE_JEU = 16;
+
+    const elements = {};
+
+    [
+      "terrain", "connexion", "attente", "menu", "gameOver",
+      "score", "record", "recordMenu", "scoreFinal", "recordFinal",
+      "rejouer", "retourMenu", "pleinEcran"
+    ].forEach(id => {
+      elements[id] = document.getElementById(id);
+    });
+
+    const canvas = elements.terrain;
+    const ctx = canvas.getContext("2d");
+
+    let socket = null;
+    let reconnexion = null;
+
+    function dessinerCase(x, y, couleur) {
+      ctx.fillStyle = couleur;
+      ctx.fillRect(
+        x,
+        y - HAUT_ZONE_JEU,
+        GRILLE - 1,
+        GRILLE - 1
+      );
+    }
+
+    function dessinerTerrain(jeu) {
+      ctx.fillStyle = "#111e29";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#2b3d4c";
+
+      for (let y = 0; y < canvas.height; y += GRILLE) {
+        for (let x = 0; x < canvas.width; x += GRILLE) {
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+
+      for (const obstacle of jeu.obstacles) {
+        dessinerCase(obstacle.x, obstacle.y, "#8295a3");
+
+        ctx.fillStyle = "#354958";
+        ctx.fillRect(
+          obstacle.x + 2,
+          obstacle.y - HAUT_ZONE_JEU + 2,
+          3,
+          3
+        );
+      }
+
+      dessinerCase(jeu.foodX, jeu.foodY, "#ff6577");
+
+      jeu.serpent.forEach((segment, index) => {
+        dessinerCase(
+          segment.x,
+          segment.y,
+          index === 0 ? "#b4ff75" : "#54ce87"
+        );
+      });
+    }
+
+    function afficherEtat(jeu) {
+      if (
+        ![MENU, JEU, GAME_OVER].includes(jeu.etat) ||
+        !Array.isArray(jeu.serpent) ||
+        !Array.isArray(jeu.obstacles)
+      ) {
+        throw new Error("Etat du jeu incomplet");
+      }
+
+      elements.score.textContent = jeu.score;
+      elements.record.textContent = jeu.record;
+      elements.recordMenu.textContent = jeu.record;
+      elements.scoreFinal.textContent = jeu.score;
+      elements.recordFinal.textContent = jeu.record;
+
+      dessinerTerrain(jeu);
+
+      elements.attente.hidden = true;
+      elements.menu.hidden = jeu.etat !== MENU;
+      elements.gameOver.hidden = jeu.etat !== GAME_OVER;
+
+      elements.rejouer.classList.toggle(
+        "selection",
+        jeu.choixGameOver === 0
+      );
+
+      elements.retourMenu.classList.toggle(
+        "selection",
+        jeu.choixGameOver === 1
+      );
+
+      const noms = ["Menu", "Partie en cours", "Game Over"];
+
+      elements.connexion.textContent = "Connecté · " + noms[jeu.etat];
+      elements.connexion.style.color = "#a9ff83";
+    }
+
+    function connecterWebSocket() {
+      if (
+        socket &&
+        (socket.readyState === WebSocket.OPEN ||
+         socket.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
+
+      clearTimeout(reconnexion);
+
+      elements.connexion.textContent = "Connexion...";
+      elements.connexion.style.color = "#ffca75";
+
+      socket = new WebSocket(
+        "ws://" + window.location.hostname + ":81/"
+      );
+
+      const connexionActuelle = socket;
+
+      connexionActuelle.onopen = () => {
+        elements.connexion.textContent = "Connecté · En attente du jeu";
+        elements.connexion.style.color = "#a9ff83";
+      };
+
+      connexionActuelle.onmessage = (message) => {
+        try {
+          afficherEtat(JSON.parse(message.data));
+        } catch (erreur) {
+          elements.connexion.textContent = "Données du jeu invalides";
+          elements.connexion.style.color = "#ffca75";
+          console.error(erreur);
+        }
+      };
+
+      connexionActuelle.onclose = () => {
+        if (socket !== connexionActuelle) {
+          return;
+        }
+
+        socket = null;
+        elements.connexion.textContent =
+          "Déconnecté · Nouvelle tentative...";
+        elements.connexion.style.color = "#ffca75";
+
+        reconnexion = setTimeout(connecterWebSocket, 1000);
+      };
+
+      connexionActuelle.onerror = () => {
+        connexionActuelle.close();
+      };
+    }
+
+    if (!document.fullscreenEnabled) {
+      elements.pleinEcran.hidden = true;
+    }
+
+    elements.pleinEcran.addEventListener("click", async () => {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (erreur) {
+        console.error(erreur);
+      }
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+      elements.pleinEcran.textContent = document.fullscreenElement
+        ? "Quitter le plein écran"
+        : "Plein écran";
+    });
+
+    connecterWebSocket();
+  </script>
+</body>
+</html>
+)rawliteral";
+\end{lstlisting}
+
+\end{document}
